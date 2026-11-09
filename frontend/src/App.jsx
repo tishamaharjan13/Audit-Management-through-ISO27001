@@ -1,5 +1,5 @@
 import React from "react";
-import AuditPlatform from "./components/AuditPlatform";
+import AuditPlatform from "src/components/AuditPlatform";
 
 export default function App() {
   return (
