@@ -22,8 +22,11 @@ import {
   PlusCircle,
   Search,
   Filter,
+  KeyRound,
+  LogOut,
+  Settings,
 } from "lucide-react";
-
+import { useAuth } from "../context/AuthContext";
 // ISO 27001:2022 Initial Seed Data
 const INITIAL_CONTROLS = [
   {
@@ -121,10 +124,18 @@ const INITIAL_CONTROLS = [
     remediation: null,
   },
 ];
-
+const ROLE_TABS = {
+  admin: ["dashboard", "notifications", "report", "users"],
+  auditor: ["dashboard", "controls", "remediation", "notifications", "report"],
+  client: ["dashboard", "controls", "remediation", "notifications"],
+};
 export default function AuditPlatform() {
-  const [role, setRole] = useState("Auditor"); // 'Auditor' | 'Client' | 'Admin'
+  const { user, logout } = useAuth();
+  // Keeps the rest of the code working: "Admin" | "Auditor" | "Client"
+  const role = user.role.charAt(0).toUpperCase() + user.role.slice(1);
+  const allowedTabs = ROLE_TABS[user.role] || ["dashboard"];
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [showChangePw, setShowChangePw] = useState(false);
   const [controls, setControls] = useState(INITIAL_CONTROLS);
   const [filterCategory, setFilterCategory] = useState("All");
   const [selectedControl, setSelectedControl] = useState(null);
@@ -274,22 +285,26 @@ export default function AuditPlatform() {
           </div>
         </div>
 
-        {/* Role Selector */}
-        <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800">
-          <span className="text-xs text-slate-400 px-3 font-medium">Role:</span>
-          {["Auditor", "Client", "Admin"].map((r) => (
-            <button
-              key={r}
-              onClick={() => setRole(r)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                role === r
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              {r}
-            </button>
-          ))}
+        {/* Logged-in user */}
+        <div className="flex items-center space-x-3">
+          <div className="text-right">
+            <p className="text-xs font-semibold text-white">{user.name}</p>
+            <p className="text-[10px] text-indigo-400">{role}</p>
+          </div>
+          <button
+            onClick={() => setShowChangePw(true)}
+            className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+          >
+            <KeyRound className="w-3.5 h-3.5" />
+            <span>Password</span>
+          </button>
+          <button
+            onClick={logout}
+            className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Log out</span>
+          </button>
         </div>
       </header>
 
@@ -312,29 +327,36 @@ export default function AuditPlatform() {
             icon: CalendarIcon,
           },
           { id: "notifications", label: "Email & Event Logs", icon: Mail },
+          { id: "users", label: "User Management", icon: UserCheck },
           { id: "report", label: "Final Certification Report", icon: FileText },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center space-x-2 py-3.5 border-b-2 transition-all whitespace-nowrap ${
-                activeTab === tab.id
-                  ? "border-indigo-500 text-indigo-400 font-semibold"
-                  : "border-transparent text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
+        ]
+          .filter((tab) => allowedTabs.includes(tab.id))
+          .map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center space-x-2 py-3.5 border-b-2 transition-all whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? "border-indigo-500 text-indigo-400 font-semibold"
+                    : "border-transparent text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
       </div>
 
       {/* MAIN CONTAINER */}
       <main className="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
         {/* DASHBOARD & AI ANALYSIS TAB */}
+        {activeTab === "users" && role === "Admin" && <UsersPage />}
+        {showChangePw && (
+          <ChangePasswordModal onClose={() => setShowChangePw(false)} />
+        )}
         {activeTab === "dashboard" && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
