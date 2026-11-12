@@ -22,6 +22,7 @@ import {
   PlusCircle,
   Search,
   Filter,
+  Printer,
 } from "lucide-react";
 
 // ISO 27001:2022 Initial Seed Data
@@ -132,6 +133,15 @@ export default function AuditPlatform() {
   const [remarksInput, setRemarksInput] = useState("");
   const [aiReport, setAiReport] = useState(null);
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+
+  // Report Generation & Metadata State
+  const [reportGenerated, setReportGenerated] = useState(false);
+  const [reportOrg, setReportOrg] = useState("Presidential Graduate School");
+  const [reportScope, setReportScope] = useState(
+    "Enterprise IT Infrastructure, Cloud Operations & Academic Data Systems",
+  );
+  const [leadAuditor, setLeadAuditor] = useState("Ms. Jasana Kayastha");
+
   const [notifications, setNotifications] = useState([
     {
       id: 1,
@@ -281,7 +291,7 @@ export default function AuditPlatform() {
             <button
               key={r}
               onClick={() => setRole(r)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 role === r
                   ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
                   : "text-slate-400 hover:text-slate-200"
@@ -319,7 +329,7 @@ export default function AuditPlatform() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center space-x-2 py-3.5 border-b-2 transition-all whitespace-nowrap ${
+              className={`flex items-center space-x-2 py-3.5 border-b-2 transition-all whitespace-nowrap cursor-pointer ${
                 activeTab === tab.id
                   ? "border-indigo-500 text-indigo-400 font-semibold"
                   : "border-transparent text-slate-400 hover:text-slate-200"
@@ -427,7 +437,7 @@ export default function AuditPlatform() {
                 <button
                   onClick={runAiAnalysis}
                   disabled={isGeneratingAi}
-                  className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-lg shadow-indigo-600/30 transition-all"
+                  className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
                 >
                   <RefreshCw
                     className={`w-4 h-4 ${isGeneratingAi ? "animate-spin" : ""}`}
@@ -533,7 +543,7 @@ export default function AuditPlatform() {
                   <button
                     key={cat}
                     onClick={() => setFilterCategory(cat)}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                       filterCategory === cat
                         ? "bg-indigo-600 text-white"
                         : "bg-slate-800 text-slate-400 hover:text-white"
@@ -636,7 +646,7 @@ export default function AuditPlatform() {
                                 <button
                                   key={st}
                                   onClick={() => handleEvaluate(c.id, st)}
-                                  className={`px-2 py-1 rounded text-[10px] font-bold transition-all ${
+                                  className={`px-2 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
                                     c.status === st
                                       ? "bg-indigo-600 text-white"
                                       : "text-slate-400 hover:text-slate-200"
@@ -651,7 +661,7 @@ export default function AuditPlatform() {
                           {role === "Client" && (
                             <button
                               onClick={() => setSelectedControl(c)}
-                              className="bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                              className="bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer"
                             >
                               Submit Evidence
                             </button>
@@ -676,7 +686,7 @@ export default function AuditPlatform() {
                 </h3>
                 <button
                   onClick={() => setSelectedControl(null)}
-                  className="text-slate-400 hover:text-white"
+                  className="text-slate-400 hover:text-white cursor-pointer"
                 >
                   ✕
                 </button>
@@ -723,13 +733,13 @@ export default function AuditPlatform() {
                   <button
                     type="button"
                     onClick={() => setSelectedControl(null)}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-indigo-600/30"
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-indigo-600/30 cursor-pointer"
                   >
                     Save & Submit Evidence
                   </button>
@@ -792,7 +802,7 @@ export default function AuditPlatform() {
                           {role === "Auditor" && (
                             <button
                               onClick={() => handleEvaluate(c.id, "C")}
-                              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition-all shadow-md shadow-emerald-600/30"
+                              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition-all shadow-md shadow-emerald-600/30 cursor-pointer"
                             >
                               Mark Resolved
                             </button>
@@ -896,117 +906,381 @@ export default function AuditPlatform() {
 
         {/* FINAL CERTIFICATION REPORT TAB */}
         {activeTab === "report" && (
-          <div className="bg-slate-800/40 border border-slate-800 rounded-2xl p-8 space-y-6 max-w-4xl mx-auto">
-            <div className="border-b border-slate-800 pb-6 flex justify-between items-start">
-              <div>
-                <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest">
-                  ISO/IEC 27001:2022 Audit Report
-                </span>
-                <h2 className="text-2xl font-bold text-white mt-1">
-                  Formal Audit & Readiness Evaluation
-                </h2>
-                <p className="text-xs text-slate-400 mt-1">
-                  Prepared by Authorized Auditor • Client: Presidential Graduate
-                  School
-                </p>
-              </div>
-              <span
-                className={`px-3 py-1 rounded-full text-xs font-bold ${
-                  metrics.score >= 80
-                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                    : "bg-rose-500/20 text-rose-400 border border-rose-500/30"
-                }`}
-              >
-                {metrics.score >= 80
-                  ? "RECOMMENDED FOR CERTIFICATION"
-                  : "REMEDIATION REQUIRED"}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
-                <span className="text-slate-400">
-                  Total Controls Evaluated:
-                </span>
-                <p className="text-lg font-bold text-white mt-1">
-                  {metrics.total} ({metrics.applicable} Applicable)
-                </p>
-              </div>
-              <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
-                <span className="text-slate-400">
-                  Final Compliance Readiness:
-                </span>
-                <p className="text-lg font-bold text-indigo-400 mt-1">
-                  {metrics.score}%
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider">
-                Audit Findings Breakdown
-              </h3>
-              <div className="space-y-2 text-xs">
-                {controls.map((c) => (
-                  <div
-                    key={c.id}
-                    className="flex justify-between items-center bg-slate-900/60 p-3 rounded-lg border border-slate-800/80"
-                  >
-                    <div>
-                      <span className="font-mono font-bold text-indigo-400">
-                        {c.id}
-                      </span>
-                      <span className="text-slate-200 ml-2">{c.title}</span>
-                    </div>
-                    <span
-                      className={`font-bold text-[11px] ${
-                        c.status === "C"
-                          ? "text-emerald-400"
-                          : c.status === "PC"
-                            ? "text-amber-400"
-                            : c.status === "NC"
-                              ? "text-rose-400"
-                              : "text-slate-400"
-                      }`}
-                    >
-                      {c.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="pt-6 border-t border-slate-800 flex justify-between items-center">
-              <div className="text-xs text-slate-400">
-                <p>
-                  Lead Auditor:{" "}
-                  <span className="text-slate-200 font-medium">
-                    Ms. Jasana Kayastha
-                  </span>
-                </p>
-                <p>
-                  Date:{" "}
-                  <span className="text-slate-200 font-medium">
-                    August 23, 2026
-                  </span>
-                </p>
-              </div>
-
-              {role === "Admin" || role === "Auditor" ? (
+          <div className="max-w-4xl mx-auto space-y-4">
+            {!reportGenerated ? (
+              /* Initial State: Show Generate Button */
+              <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-10 text-center space-y-6 shadow-xl">
+                <div className="w-16 h-16 bg-indigo-600/20 text-indigo-400 rounded-2xl border border-indigo-500/30 flex items-center justify-center mx-auto shadow-inner">
+                  <FileText className="w-8 h-8" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-lg font-bold text-white">
+                    ISO/IEC 27001:2022 Certification Audit Report
+                  </h3>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto">
+                    Click the button below to compile live Annex A control
+                    statuses, readiness metrics, and non-conformity findings
+                    into a formal print-ready certification report.
+                  </p>
+                </div>
                 <button
-                  onClick={() =>
-                    alert("Audit formally closed and report generated.")
-                  }
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all"
+                  onClick={() => setReportGenerated(true)}
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl text-xs font-bold shadow-lg shadow-indigo-600/30 transition-all cursor-pointer inline-flex items-center space-x-2"
                 >
-                  Formal Audit Closure & Sign-Off
+                  <Cpu className="w-4 h-4" />
+                  <span>Generate Report</span>
                 </button>
-              ) : (
-                <span className="text-xs text-slate-500 italic">
-                  Sign-off restricted to Lead Auditor/Admin
-                </span>
-              )}
-            </div>
+              </div>
+            ) : (
+              /* Generated State: Show Full Report & Action Bar */
+              <div className="space-y-4">
+                {/* Top Action Bar (Hidden when printing) */}
+                <div className="flex justify-between items-center bg-slate-800/60 border border-slate-700/60 p-4 rounded-xl print:hidden">
+                  <div>
+                    <h3 className="text-sm font-bold text-white">
+                      Formal ISO/IEC 27001:2022 Audit Report
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Compiled successfully from live evaluation metrics
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => setReportGenerated(false)}
+                      className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                    >
+                      Reset / Reconfigure
+                    </button>
+                    <button
+                      onClick={() => window.print()}
+                      className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
+                    >
+                      <Printer className="w-4 h-4" />
+                      <span>Print / Save as PDF</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Printable Formal Document Container */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 md:p-10 space-y-8 shadow-2xl print:bg-white print:text-black print:border-none print:shadow-none">
+                  {/* Document Header */}
+                  <div className="border-b-2 border-indigo-500/40 pb-6 flex flex-wrap justify-between items-start gap-4 print:border-slate-300">
+                    <div>
+                      <div className="flex items-center space-x-2 text-indigo-400 print:text-indigo-700">
+                        <ShieldCheck className="w-5 h-5" />
+                        <span className="text-xs font-bold uppercase tracking-widest">
+                          Confidential • ISO/IEC 27001:2022 Certification Audit
+                        </span>
+                      </div>
+                      <h2 className="text-2xl font-bold text-white mt-2 print:text-slate-900">
+                        Information Security Management System (ISMS) Audit
+                        Report
+                      </h2>
+                      <p className="text-xs text-slate-400 mt-1 print:text-slate-600">
+                        Document ID:{" "}
+                        <span className="font-mono">ISMS-AUD-2026-089</span> •
+                        Standard:{" "}
+                        <span className="font-semibold">
+                          ISO/IEC 27001:2022
+                        </span>
+                      </p>
+                    </div>
+
+                    <div className="text-right">
+                      <span
+                        className={`inline-block px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide ${
+                          metrics.score >= 80
+                            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 print:bg-emerald-100 print:text-emerald-800"
+                            : "bg-rose-500/20 text-rose-400 border border-rose-500/30 print:bg-rose-100 print:text-rose-800"
+                        }`}
+                      >
+                        {metrics.score >= 80
+                          ? "RECOMMENDED FOR CERTIFICATION"
+                          : "CORRECTIVE ACTION REQUIRED"}
+                      </span>
+                      <p className="text-[11px] text-slate-400 mt-2 print:text-slate-500">
+                        Classification: Restricted
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 1. Audit Metadata & Scope Table (Editable Inputs) */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-400 print:text-indigo-700">
+                      1. Organization & Audit Engagement Details (Editable)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-slate-800 border border-slate-800 rounded-xl overflow-hidden text-xs print:bg-slate-300 print:border-slate-300">
+                      <div className="bg-slate-950/90 p-3.5 print:bg-slate-50">
+                        <span className="text-slate-400 block text-[11px] print:text-slate-500 mb-1">
+                          Client Organization
+                        </span>
+                        <input
+                          type="text"
+                          value={reportOrg}
+                          onChange={(e) => setReportOrg(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white font-semibold print:bg-transparent print:border-none print:text-slate-900 print:p-0"
+                        />
+                      </div>
+                      <div className="bg-slate-950/90 p-3.5 print:bg-slate-50">
+                        <span className="text-slate-400 block text-[11px] print:text-slate-500 mb-1">
+                          Audit Type & Stage
+                        </span>
+                        <span className="font-semibold text-white print:text-slate-900 block py-1">
+                          Stage 2 Certification Readiness Audit
+                        </span>
+                      </div>
+                      <div className="bg-slate-950/90 p-3.5 print:bg-slate-50">
+                        <span className="text-slate-400 block text-[11px] print:text-slate-500 mb-1">
+                          ISMS Scope Statement
+                        </span>
+                        <input
+                          type="text"
+                          value={reportScope}
+                          onChange={(e) => setReportScope(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white font-semibold print:bg-transparent print:border-none print:text-slate-900 print:p-0"
+                        />
+                      </div>
+                      <div className="bg-slate-950/90 p-3.5 print:bg-slate-50">
+                        <span className="text-slate-400 block text-[11px] print:text-slate-500 mb-1">
+                          Statement of Applicability (SoA)
+                        </span>
+                        <span className="font-semibold text-white print:text-slate-900 block py-1">
+                          v2.4 ({metrics.applicable} Applicable Controls /{" "}
+                          {metrics.na} Excluded)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 2. Executive Compliance Summary */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-400 print:text-indigo-700">
+                      2. Executive Summary & Readiness Metrics
+                    </h3>
+                    <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 print:bg-slate-50 print:text-slate-700 print:border-slate-200">
+                      An independent conformity assessment was conducted against
+                      the requirements of <strong>ISO/IEC 27001:2022</strong>{" "}
+                      for <strong>{reportOrg}</strong>. Out of{" "}
+                      <strong>
+                        {metrics.applicable} applicable Annex A controls
+                      </strong>{" "}
+                      evaluated, the organization achieved an overall readiness
+                      score of <strong>{metrics.score}%</strong>.
+                      {metrics.nc > 0
+                        ? ` Currently, ${metrics.nc} Non-Conformity (NC) and ${metrics.pc} Partially Compliant (PC) findings require documented root-cause analysis and corrective evidence prior to final certificate issuance.`
+                        : ` All evaluated controls meet conformity requirements with zero open non-conformities.`}
+                    </p>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 print:bg-white print:border-slate-300">
+                        <span className="text-slate-400 text-[11px]">
+                          Overall Readiness
+                        </span>
+                        <p className="text-xl font-bold text-indigo-400 mt-0.5 print:text-indigo-700">
+                          {metrics.score}%
+                        </p>
+                      </div>
+                      <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 print:bg-white print:border-slate-300">
+                        <span className="text-slate-400 text-[11px]">
+                          Compliant (C)
+                        </span>
+                        <p className="text-xl font-bold text-emerald-400 mt-0.5 print:text-emerald-700">
+                          {metrics.compliant}
+                        </p>
+                      </div>
+                      <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 print:bg-white print:border-slate-300">
+                        <span className="text-slate-400 text-[11px]">
+                          Partial (PC)
+                        </span>
+                        <p className="text-xl font-bold text-amber-400 mt-0.5 print:text-amber-700">
+                          {metrics.pc}
+                        </p>
+                      </div>
+                      <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 print:bg-white print:border-slate-300">
+                        <span className="text-slate-400 text-[11px]">
+                          Non-Compliant (NC)
+                        </span>
+                        <p className="text-xl font-bold text-rose-400 mt-0.5 print:text-rose-700">
+                          {metrics.nc}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. Annex A Detailed Conformity Matrix */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-400 print:text-indigo-700">
+                      3. Annex A Control Conformity Matrix & Evidence Log
+                    </h3>
+                    <div className="border border-slate-800 rounded-xl overflow-hidden print:border-slate-300">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 print:bg-slate-100 print:text-slate-700 print:border-slate-300">
+                          <tr>
+                            <th className="p-3 font-semibold">Control</th>
+                            <th className="p-3 font-semibold">
+                              Domain & Requirement
+                            </th>
+                            <th className="p-3 font-semibold">
+                              Verified Evidence
+                            </th>
+                            <th className="p-3 font-semibold text-right">
+                              Finding
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/80 print:divide-slate-200">
+                          {controls.map((c) => (
+                            <tr
+                              key={c.id}
+                              className="bg-slate-900/40 print:bg-white"
+                            >
+                              <td className="p-3 font-mono font-bold text-indigo-400 whitespace-nowrap print:text-indigo-700">
+                                {c.id}
+                              </td>
+                              <td className="p-3">
+                                <div className="font-semibold text-slate-200 print:text-slate-900">
+                                  {c.title}
+                                </div>
+                                <div className="text-[11px] text-slate-400 mt-0.5 print:text-slate-600">
+                                  {c.remarks ||
+                                    "Verified during audit walkthrough."}
+                                </div>
+                              </td>
+                              <td className="p-3 font-mono text-[11px] text-slate-300 print:text-slate-700">
+                                {c.evidence || (
+                                  <span className="italic text-slate-500">
+                                    None provided
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 text-right whitespace-nowrap">
+                                <span
+                                  className={`px-2 py-0.5 rounded font-bold text-[10px] ${
+                                    c.status === "C"
+                                      ? "bg-emerald-500/20 text-emerald-400 print:bg-emerald-100 print:text-emerald-800"
+                                      : c.status === "PC"
+                                        ? "bg-amber-500/20 text-amber-400 print:bg-amber-100 print:text-amber-800"
+                                        : c.status === "NC"
+                                          ? "bg-rose-500/20 text-rose-400 print:bg-rose-100 print:text-rose-800"
+                                          : "bg-slate-800 text-slate-400 print:bg-slate-100 print:text-slate-600"
+                                  }`}
+                                >
+                                  {c.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* 4. Non-Conformity & Corrective Action Plan (CAP) */}
+                  {controls.filter(
+                    (c) => c.status === "NC" || c.status === "PC",
+                  ).length > 0 && (
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-rose-400 print:text-rose-700">
+                        4. Non-Conformity & Corrective Action Plan (CAP)
+                      </h3>
+                      <div className="space-y-2 text-xs">
+                        {controls
+                          .filter((c) => c.status === "NC" || c.status === "PC")
+                          .map((c) => (
+                            <div
+                              key={c.id}
+                              className="bg-slate-950/70 border border-slate-800 p-3.5 rounded-xl flex justify-between items-start gap-4 print:bg-slate-50 print:border-slate-300"
+                            >
+                              <div>
+                                <span className="font-mono font-bold text-indigo-400 print:text-indigo-700">
+                                  {c.id} ({c.status})
+                                </span>
+                                <p className="text-slate-200 font-medium mt-0.5 print:text-slate-900">
+                                  {c.remediation?.task ||
+                                    `Address gap in ${c.title}`}
+                                </p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="text-[11px] text-slate-400 block">
+                                  Target Closure
+                                </span>
+                                <span className="font-mono font-semibold text-rose-400 print:text-rose-700">
+                                  {c.remediation?.deadline || "2026-09-30"}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 5. Formal Attestation & Sign-Off */}
+                  <div className="pt-6 border-t border-slate-800 space-y-6 print:border-slate-300">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-400 print:text-indigo-700">
+                      5. Lead Auditor Attestation & Formal Sign-Off (Editable)
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs">
+                      <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-2 print:bg-slate-50 print:border-slate-300">
+                        <p className="text-slate-400 text-[11px]">
+                          Lead ISO/IEC 27001 Auditor
+                        </p>
+                        <input
+                          type="text"
+                          value={leadAuditor}
+                          onChange={(e) => setLeadAuditor(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white font-bold text-sm print:bg-transparent print:border-none print:text-slate-900 print:p-0"
+                        />
+                        <p className="text-slate-400 text-[11px]">
+                          Credential: IRCA Certified ISMS Lead Auditor
+                        </p>
+                        <div className="pt-3 border-t border-slate-800/80 flex justify-between text-[11px] text-slate-500 print:border-slate-300">
+                          <span>
+                            Signature: /s/ {leadAuditor.split(" ").pop()}
+                          </span>
+                          <span>Date: 2026-11-12</span>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-2 print:bg-slate-50 print:border-slate-300">
+                        <p className="text-slate-400 text-[11px]">
+                          Client Management Representative
+                        </p>
+                        <p className="font-bold text-white text-sm print:text-slate-900">
+                          Information Security Officer
+                        </p>
+                        <p className="text-slate-400 text-[11px]">
+                          Organization: {reportOrg}
+                        </p>
+                        <div className="pt-3 border-t border-slate-800/80 flex justify-between text-[11px] text-slate-500 print:border-slate-300">
+                          <span>Status: Acknowledged</span>
+                          <span>Date: 2026-11-12</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Interactive Closure Button (Hidden on Print) */}
+                    <div className="flex justify-end print:hidden">
+                      {role === "Admin" || role === "Auditor" ? (
+                        <button
+                          onClick={() =>
+                            alert(
+                              "ISO/IEC 27001:2022 Audit Report formally signed off and locked.",
+                            )
+                          }
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all cursor-pointer"
+                        >
+                          Formal Audit Closure & Sign-Off
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-500 italic">
+                          Sign-off restricted to Lead Auditor / Admin roles
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
