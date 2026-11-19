@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors");
-
+const { authenticate, requireRole } = require("./middleware/auth");
 const app = express();
 
 app.use(cors());
@@ -19,6 +19,25 @@ app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
   });
+});
+
+// RBAC testing routes
+
+app.get("/api/admin/test", authenticate, requireRole("admin"), (req, res) => {
+  res.json({ message: "Welcome Admin! Access granted." });
+});
+
+app.get(
+  "/api/auditor/test",
+  authenticate,
+  requireRole("auditor"),
+  (req, res) => {
+    res.json({ message: "Welcome Auditor! Access granted." });
+  },
+);
+
+app.get("/api/client/test", authenticate, requireRole("client"), (req, res) => {
+  res.json({ message: "Welcome Client! Access granted." });
 });
 
 app.use("/api/auth", authRoutes);
