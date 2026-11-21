@@ -7,6 +7,7 @@ app.use(cors());
 app.use(express.json());
 
 const authRoutes = require("./routes/auth");
+const usersRoutes = require("./routes/users");
 
 app.get("/", (req, res) => {
   res.json({
@@ -41,4 +42,5 @@ app.get("/api/client/test", authenticate, requireRole("client"), (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/users", usersRoutes);
 module.exports = app;
