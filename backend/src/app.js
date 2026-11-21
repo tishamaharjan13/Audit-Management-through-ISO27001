@@ -11,6 +11,8 @@ const usersRoutes = require("./routes/users");
 const organisationsRoutes = require("./routes/organisations");
 const auditsRoutes = require("./routes/audits");
 const clientAuditsRoutes = require("./routes/clientAudits");
+const auditorAuditsRoutes = require("./routes/auditorAudits");
+const dashboardRoutes = require("./routes/dashboard");
 
 app.get("/", (req, res) => {
   res.json({
@@ -49,5 +51,7 @@ app.use("/api/users", usersRoutes);
 app.use("/api/organisations", organisationsRoutes);
 app.use("/api/audits", auditsRoutes);
 app.use("/api/client/audits", clientAuditsRoutes);
+app.use("/api/auditor/audits", auditorAuditsRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 module.exports = app;
