@@ -13,8 +13,11 @@ function Gate() {
   // Nobody can reach the platform without signing in
   if (isAuthenticated) return <AuditPlatform />;
 
-  const go = (neAxt, data = {}) => {
-    if (data.email !== undefined) setResetEmail(data.email);
+  const go = (next, data = {}) => {
+    if (data.email !== undefined) {
+      setResetEmail(data.email);
+    }
+
     setView(next);
   };
 
