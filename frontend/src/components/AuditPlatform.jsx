@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   ShieldCheck,
   AlertTriangle,
@@ -27,6 +27,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { request } from "../services/authService";
 // ISO 27001:2022 Initial Seed Data
 const INITIAL_CONTROLS = [
   {
@@ -131,6 +132,228 @@ const ROLE_TABS = {
 };
 export default function AuditPlatform() {
   const { user, logout } = useAuth();
+  const [adminStats, setAdminStats] = useState(null);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminError, setAdminError] = useState("");
+
+  const [clientStats, setClientStats] = useState(null);
+  const [clientLoading, setClientLoading] = useState(false);
+  const [clientError, setClientError] = useState("");
+
+  const [clientAudit, setClientAudit] = useState(null);
+  const [clientAuditLoading, setClientAuditLoading] = useState(false);
+  const [clientAuditError, setClientAuditError] = useState("");
+
+  const [auditorStats, setAuditorStats] = useState(null);
+  const [auditorLoading, setAuditorLoading] = useState(false);
+  const [auditorError, setAuditorError] = useState("");
+
+  const [auditorAudit, setAuditorAudit] = useState(null);
+  const [auditorAuditLoading, setAuditorAuditLoading] = useState(false);
+  const [auditorAuditError, setAuditorAuditError] = useState("");
+
+  const [evaluationModal, setEvaluationModal] = useState(null);
+  const [findingDescription, setFindingDescription] = useState("");
+  const [findingSeverity, setFindingSeverity] = useState("medium");
+  const [findingDueDate, setFindingDueDate] = useState("");
+  const [evaluationSaving, setEvaluationSaving] = useState(false);
+  const [evaluationMessage, setEvaluationMessage] = useState("");
+  useEffect(() => {
+    if (user?.role !== "admin") return;
+
+    let cancelled = false;
+
+    setAdminLoading(true);
+    setAdminError("");
+
+    request("/dashboard/admin")
+      .then((data) => {
+        if (!cancelled) {
+          setAdminStats(data);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setAdminError(error.message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAdminLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.role]);
+
+  useEffect(() => {
+    if (user?.role !== "client") return;
+
+    let cancelled = false;
+
+    setClientLoading(true);
+    setClientError("");
+
+    request("/dashboard/client")
+      .then((data) => {
+        if (!cancelled) {
+          setClientStats(data);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setClientError(error.message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setClientLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.role]);
+
+  useEffect(() => {
+    if (user?.role !== "auditor") return;
+
+    let cancelled = false;
+
+    setAuditorLoading(true);
+    setAuditorError("");
+
+    request("/dashboard/auditor")
+      .then((data) => {
+        if (!cancelled) {
+          setAuditorStats(data);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setAuditorError(error.message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAuditorLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.role]);
+
+  useEffect(() => {
+    if (user?.role !== "auditor") return;
+
+    let cancelled = false;
+
+    setAuditorAuditLoading(true);
+    setAuditorAuditError("");
+
+    request("/auditor/audits")
+      .then(async (audits) => {
+        if (cancelled) return;
+
+        if (!audits || audits.length === 0) {
+          setAuditorAudit(null);
+          return;
+        }
+
+        // Fetch the details and controls of the first assigned audit
+        const data = await request(`/auditor/audits/${audits[0].id}`);
+
+        if (!cancelled) {
+          setAuditorAudit(data);
+
+          const mappedControls = data.controls.map((control) => ({
+            id: control.control_id,
+            auditControlId: control.audit_control_id,
+            category: control.theme,
+            title: control.title,
+            status:
+              control.result === "NA" ? "N/A" : control.result || "Pending",
+            evidence: control.client_explanation || "",
+            remarks: control.auditor_comment || "",
+            remediation: null,
+            workflowStatus: control.workflow_status,
+          }));
+
+          setControls(mappedControls);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setAuditorAuditError(error.message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAuditorAuditLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.role]);
+
+  useEffect(() => {
+    if (user?.role !== "client") return;
+
+    const auditId = clientStats?.audit_list?.[0]?.id;
+
+    if (!auditId) return;
+
+    let cancelled = false;
+
+    const loadClientAudit = async () => {
+      setClientAuditLoading(true);
+      setClientAuditError("");
+
+      try {
+        const data = await request(`/client/audits/${auditId}`);
+
+        if (cancelled) return;
+
+        setClientAudit(data);
+
+        const mappedControls = data.controls.map((control) => ({
+          id: control.control_id,
+          auditControlId: control.audit_control_id,
+          category: control.theme,
+          title: control.title,
+          status: control.result === "NA" ? "N/A" : control.result || "Pending",
+          evidence: control.client_explanation || "",
+          remarks: control.client_explanation || "",
+          remediation: null,
+          workflowStatus: control.workflow_status,
+        }));
+
+        setControls(mappedControls);
+      } catch (error) {
+        if (!cancelled) {
+          setClientAuditError(error.message);
+        }
+      } finally {
+        if (!cancelled) {
+          setClientAuditLoading(false);
+        }
+      }
+    };
+
+    loadClientAudit();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.role, clientStats?.audit_list?.[0]?.id]);
+
   // Keeps the rest of the code working: "Admin" | "Auditor" | "Client"
   const role = user.role.charAt(0).toUpperCase() + user.role.slice(1);
   const allowedTabs = ROLE_TABS[user.role] || ["dashboard"];
@@ -185,59 +408,142 @@ export default function AuditPlatform() {
   }, [controls]);
 
   // Handle Control Evaluation (Auditor action)
+
   const handleEvaluate = (id, newStatus) => {
-    setControls((prev) =>
-      prev.map((c) => {
-        if (c.id === id) {
-          let updatedRemediation = c.remediation;
-          if ((newStatus === "PC" || newStatus === "NC") && !c.remediation) {
-            updatedRemediation = {
-              task: `Remediate control gap for ${c.id}: ${c.title}`,
-              deadline: "2026-09-30",
-              status: "Pending Evidence",
-            };
-            setNotifications((n) => [
-              {
-                id: Date.now(),
-                type: "warning",
-                title: `Finding Triggered: ${c.id}`,
-                msg: `Automated email notification sent to Client organization. Severity: ${newStatus}`,
-                date: new Date().toISOString().split("T")[0],
-              },
-              ...n,
-            ]);
-          }
-          return { ...c, status: newStatus, remediation: updatedRemediation };
-        }
-        return c;
-      }),
-    );
+    const control = controls.find((c) => c.id === id);
+
+    if (!auditorAudit?.audit?.id || !control?.auditControlId) {
+      setEvaluationMessage("Audit or control information is missing.");
+      return;
+    }
+
+    setFindingDescription("");
+    setFindingSeverity("medium");
+    setFindingDueDate("");
+    setEvaluationMessage("");
+
+    setEvaluationModal({
+      control,
+      result: newStatus === "N/A" ? "NA" : newStatus,
+    });
+  };
+
+  const submitEvaluation = async () => {
+    if (!evaluationModal) return;
+
+    const { control, result } = evaluationModal;
+
+    if (
+      (result === "PC" || result === "NC") &&
+      findingDescription.trim().length < 10
+    ) {
+      setEvaluationMessage(
+        "Finding description must be at least 10 characters.",
+      );
+      return;
+    }
+
+    if ((result === "PC" || result === "NC") && !findingDueDate) {
+      setEvaluationMessage("Please select a remediation due date.");
+      return;
+    }
+
+    setEvaluationSaving(true);
+    setEvaluationMessage("");
+
+    try {
+      await request(
+        `/auditor/audits/${auditorAudit.audit.id}/controls/${control.auditControlId}/evaluate`,
+        {
+          method: "PATCH",
+          body: {
+            result,
+            auditor_comment: "",
+            finding_description: findingDescription.trim(),
+            severity: findingSeverity,
+            due_date: findingDueDate,
+          },
+        },
+      );
+
+      const data = await request(`/auditor/audits/${auditorAudit.audit.id}`);
+
+      setAuditorAudit(data);
+
+      setControls(
+        data.controls.map((item) => ({
+          id: item.control_id,
+          auditControlId: item.audit_control_id,
+          category: item.theme,
+          title: item.title,
+          status: item.result === "NA" ? "N/A" : item.result || "Pending",
+          evidence: item.client_explanation || "",
+          remarks: item.auditor_comment || "",
+          remediation: null,
+          workflowStatus: item.workflow_status,
+        })),
+      );
+
+      setEvaluationModal(null);
+      setEvaluationMessage("Evaluation saved successfully!");
+    } catch (error) {
+      setEvaluationMessage(error.message || "Could not save the evaluation.");
+    } finally {
+      setEvaluationSaving(false);
+    }
   };
 
   // Handle Evidence Upload (Client action)
-  const handleClientSubmit = (e) => {
+
+  const handleClientSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedControl) return;
 
-    setControls((prev) =>
-      prev.map((c) => {
-        if (c.id === selectedControl.id) {
-          return {
-            ...c,
-            evidence: evidenceInput || c.evidence,
-            remarks: remarksInput || c.remarks,
-            remediation: c.remediation
-              ? { ...c.remediation, status: "Under Auditor Re-evaluation" }
-              : null,
-          };
-        }
-        return c;
-      }),
-    );
+    if (!selectedControl || !clientAudit?.audit?.id) return;
 
-    setSelectedControl(null);
-    setEvidenceInput("");
-    setRemarksInput("");
+    const explanation = remarksInput.trim();
+
+    if (explanation.length < 10) {
+      alert("Please provide an explanation of at least 10 characters.");
+      return;
+    }
+
+    try {
+      await request(
+        `/client/audits/${clientAudit.audit.id}/controls/${selectedControl.auditControlId}/submit`,
+        {
+          method: "POST",
+          body: {
+            client_explanation: explanation,
+          },
+        },
+      );
+
+      const data = await request(`/client/audits/${clientAudit.audit.id}`);
+
+      setClientAudit(data);
+
+      setControls(
+        data.controls.map((control) => ({
+          id: control.control_id,
+          auditControlId: control.audit_control_id,
+          category: control.theme,
+          title: control.title,
+          status: control.result === "NA" ? "N/A" : control.result || "Pending",
+          evidence: control.client_explanation || "",
+          remarks: control.client_explanation || "",
+          remediation: null,
+          workflowStatus: control.workflow_status,
+        })),
+      );
+
+      setSelectedControl(null);
+      setEvidenceInput("");
+      setRemarksInput("");
+
+      alert("Assessment submitted successfully!");
+    } catch (error) {
+      alert(error.message || "Could not submit assessment.");
+    }
   };
 
   // Run AI Readiness Analysis
@@ -357,182 +663,360 @@ export default function AuditPlatform() {
         {showChangePw && (
           <ChangePasswordModal onClose={() => setShowChangePw(false)} />
         )}
-        {activeTab === "dashboard" && (
+
+        {activeTab === "dashboard" && role === "Admin" && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 flex justify-between items-center">
-                <div>
-                  <p className="text-xs font-medium text-slate-400">
-                    Readiness Score
-                  </p>
-                  <h3 className="text-2xl font-bold text-indigo-400 mt-1">
-                    {metrics.score}%
-                  </h3>
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    Excluding N/A controls
-                  </p>
+            {adminLoading && (
+              <p className="text-sm text-indigo-400">
+                Loading dashboard data...
+              </p>
+            )}
+
+            {adminError && (
+              <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4 text-sm text-rose-400">
+                {adminError}
+              </div>
+            )}
+
+            {adminStats && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {[
+                    {
+                      label: "Organisations",
+                      value: adminStats.organisations?.total ?? 0,
+                      color: "text-indigo-400",
+                    },
+                    {
+                      label: "Total Users",
+                      value: adminStats.users?.total ?? 0,
+                      color: "text-blue-400",
+                    },
+                    {
+                      label: "Total Audits",
+                      value: adminStats.audits?.total ?? 0,
+                      color: "text-amber-400",
+                    },
+                    {
+                      label: "Total Findings",
+                      value: adminStats.findings?.total ?? 0,
+                      color: "text-rose-400",
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-5"
+                    >
+                      <p className="text-xs font-medium text-slate-400">
+                        {item.label}
+                      </p>
+                      <h3 className={`text-3xl font-bold mt-2 ${item.color}`}>
+                        {item.value}
+                      </h3>
+                    </div>
+                  ))}
                 </div>
-                <div className="w-12 h-12 rounded-full border-4 border-indigo-500/30 border-t-indigo-500 flex items-center justify-center font-bold text-xs text-indigo-400">
-                  {metrics.score}%
-                </div>
-              </div>
 
-              <div className="bg-slate-800/60 border border-emerald-500/20 rounded-xl p-4">
-                <p className="text-xs font-medium text-emerald-400">
-                  Compliant (C)
-                </p>
-                <h3 className="text-2xl font-bold text-white mt-1">
-                  {metrics.compliant}
-                </h3>
-                <p className="text-[10px] text-slate-400 mt-1">
-                  {Math.round(
-                    (metrics.compliant / metrics.applicable) * 100 || 0,
-                  )}
-                  % of applicable controls
-                </p>
-              </div>
-
-              <div className="bg-slate-800/60 border border-amber-500/20 rounded-xl p-4">
-                <p className="text-xs font-medium text-amber-400">
-                  Partially Compliant (PC)
-                </p>
-                <h3 className="text-2xl font-bold text-white mt-1">
-                  {metrics.pc}
-                </h3>
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Remediation required
-                </p>
-              </div>
-
-              <div className="bg-slate-800/60 border border-rose-500/20 rounded-xl p-4">
-                <p className="text-xs font-medium text-rose-400">
-                  Non-Compliant (NC)
-                </p>
-                <h3 className="text-2xl font-bold text-white mt-1">
-                  {metrics.nc}
-                </h3>
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Critical gap / Audit finding
-                </p>
-              </div>
-
-              <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4">
-                <p className="text-xs font-medium text-slate-400">
-                  Not Applicable (N/A)
-                </p>
-                <h3 className="text-2xl font-bold text-white mt-1">
-                  {metrics.na}
-                </h3>
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Out of audit scope
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-slate-800/90 to-indigo-950/40 border border-indigo-500/30 rounded-2xl p-6 shadow-xl">
-              <div className="flex flex-wrap justify-between items-center gap-4 border-b border-indigo-500/20 pb-4">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-400/30">
-                    <Cpu className="w-6 h-6 animate-pulse" />
+                <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-5">
+                  <h2 className="text-base font-bold text-white mb-4">
+                    Audit Status Overview
+                  </h2>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                      ["Draft", adminStats.audits?.draft],
+                      ["In Progress", adminStats.audits?.in_progress],
+                      ["Completed", adminStats.audits?.completed],
+                      ["Closed", adminStats.audits?.closed],
+                    ].map(([label, value]) => (
+                      <div key={label} className="bg-slate-900 rounded-xl p-4">
+                        <p className="text-xs text-slate-400">{label}</p>
+                        <p className="text-2xl font-bold text-white mt-1">
+                          {value ?? 0}
+                        </p>
+                      </div>
+                    ))}
                   </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-white">
-                      AI Readiness & Gap Analysis Engine
+                </div>
+
+                <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-5">
+                  <h2 className="text-base font-bold text-white mb-4">
+                    Annex A Control Overview
+                  </h2>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                      ["Compliant", adminStats.controls?.compliant],
+                      [
+                        "Partially Compliant",
+                        adminStats.controls?.partially_compliant,
+                      ],
+                      ["Non-Compliant", adminStats.controls?.non_compliant],
+                      ["Not Applicable", adminStats.controls?.not_applicable],
+                      ["Pending", adminStats.controls?.pending],
+                      ["Awaiting Review", adminStats.controls?.awaiting_review],
+                      ["Remediation", adminStats.controls?.remediation],
+                    ].map(([label, value]) => (
+                      <div key={label} className="bg-slate-900 rounded-xl p-4">
+                        <p className="text-xs text-slate-400">{label}</p>
+                        <p className="text-xl font-bold text-white mt-1">
+                          {value ?? 0}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-5">
+                    <h2 className="text-sm font-bold text-white mb-3">
+                      Compliance Rate
                     </h2>
-                    <p className="text-xs text-slate-400">
-                      Automated evaluation based on real-time Annex A control
-                      state
+                    <p className="text-4xl font-bold text-emerald-400">
+                      {Number(adminStats.compliance_rate ?? 0).toFixed(1)}%
+                    </p>
+                    <p className="text-xs text-slate-400 mt-2">
+                      Based on assessed audit controls
                     </p>
                   </div>
-                </div>
 
-                <button
-                  onClick={runAiAnalysis}
-                  disabled={isGeneratingAi}
-                  className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-lg shadow-indigo-600/30 transition-all"
-                >
-                  <RefreshCw
-                    className={`w-4 h-4 ${isGeneratingAi ? "animate-spin" : ""}`}
-                  />
-                  <span>
-                    {isGeneratingAi
-                      ? "Analyzing Annex A Controls..."
-                      : "Run AI Analysis"}
-                  </span>
-                </button>
+                  <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-5">
+                    <h2 className="text-sm font-bold text-white mb-3">
+                      Findings Overview
+                    </h2>
+                    <div className="space-y-2 text-sm text-slate-300">
+                      <p>Open: {adminStats.findings?.open ?? 0}</p>
+                      <p>
+                        Awaiting Verification:{" "}
+                        {adminStats.findings?.awaiting_verification ?? 0}
+                      </p>
+                      <p>Resolved: {adminStats.findings?.resolved ?? 0}</p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {activeTab === "dashboard" && role === "Client" && (
+          <div className="space-y-6">
+            {clientLoading && (
+              <p className="text-sm text-indigo-400">
+                Loading your audit data...
+              </p>
+            )}
+
+            {clientError && (
+              <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4 text-sm text-rose-400">
+                {clientError}
               </div>
+            )}
 
-              {aiReport ? (
-                <div className="mt-6 space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
-                      <p className="text-xs text-slate-400">
-                        AI Readiness Rating
-                      </p>
-                      <p className="text-xl font-bold text-indigo-400 mt-1">
-                        {aiReport.readinessScore}% Ready
-                      </p>
-                    </div>
-                    <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
-                      <p className="text-xs text-slate-400">
-                        Calculated Risk Exposure
-                      </p>
-                      <span
-                        className={`inline-block mt-1 px-2.5 py-0.5 rounded-md text-xs font-bold ${
-                          aiReport.riskLevel === "LOW"
-                            ? "bg-emerald-500/20 text-emerald-400"
-                            : "bg-rose-500/20 text-rose-400"
-                        }`}
-                      >
-                        {aiReport.riskLevel} RISK
-                      </span>
-                    </div>
-                    <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
-                      <p className="text-xs text-slate-400">
-                        Est. Time to Certification
-                      </p>
-                      <p className="text-xl font-bold text-slate-200 mt-1">
-                        {aiReport.certificationEstimate}
+            {clientStats && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {[
+                    ["Assigned Audits", clientStats.audits?.total],
+                    ["In Progress", clientStats.audits?.in_progress],
+                    ["Completed", clientStats.audits?.completed],
+                    ["Total Controls", clientStats.controls?.total],
+                  ].map(([label, value]) => (
+                    <div
+                      key={label}
+                      className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-5"
+                    >
+                      <p className="text-xs text-slate-400">{label}</p>
+                      <p className="text-3xl font-bold text-indigo-400 mt-2">
+                        {value ?? 0}
                       </p>
                     </div>
+                  ))}
+                </div>
+
+                <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-5">
+                  <h2 className="text-base font-bold text-white mb-4">
+                    Control Assessment Overview
+                  </h2>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                      ["Pending", clientStats.controls?.pending],
+                      [
+                        "Awaiting Review",
+                        clientStats.controls?.awaiting_review,
+                      ],
+                      ["Evaluated", clientStats.controls?.evaluated],
+                      ["Remediation", clientStats.controls?.remediation],
+                      ["Compliant", clientStats.controls?.compliant],
+                      [
+                        "Partially Compliant",
+                        clientStats.controls?.partially_compliant,
+                      ],
+                      ["Non-Compliant", clientStats.controls?.non_compliant],
+                      ["Not Applicable", clientStats.controls?.not_applicable],
+                    ].map(([label, value]) => (
+                      <div key={label} className="bg-slate-900 rounded-xl p-4">
+                        <p className="text-xs text-slate-400">{label}</p>
+                        <p className="text-2xl font-bold text-white mt-1">
+                          {value ?? 0}
+                        </p>
+                      </div>
+                    ))}
                   </div>
+                </div>
 
-                  <div className="bg-slate-900/90 p-4 rounded-xl border border-indigo-500/20">
-                    <h4 className="text-xs font-semibold uppercase text-indigo-400 tracking-wider">
-                      Gap Executive Summary
-                    </h4>
-                    <p className="text-sm text-slate-300 mt-2">
-                      {aiReport.gapSummary}
-                    </p>
+                <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-5">
+                  <h2 className="text-base font-bold text-white mb-4">
+                    Findings Overview
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {[
+                      ["Open Findings", clientStats.findings?.open],
+                      [
+                        "Awaiting Verification",
+                        clientStats.findings?.awaiting_verification,
+                      ],
+                      ["Resolved Findings", clientStats.findings?.resolved],
+                    ].map(([label, value]) => (
+                      <div key={label} className="bg-slate-900 rounded-xl p-4">
+                        <p className="text-xs text-slate-400">{label}</p>
+                        <p className="text-2xl font-bold text-white mt-1">
+                          {value ?? 0}
+                        </p>
+                      </div>
+                    ))}
                   </div>
+                </div>
 
-                  <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-800">
-                    <h4 className="text-xs font-semibold uppercase text-indigo-400 tracking-wider mb-3">
-                      Prioritized Remediation Recommendations
-                    </h4>
-                    <ul className="space-y-2">
-                      {aiReport.recommendations.map((rec, idx) => (
-                        <li
-                          key={idx}
-                          className="flex items-start space-x-2 text-xs text-slate-300"
+                <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-5">
+                  <h2 className="text-base font-bold text-white mb-4">
+                    My Assigned Audits
+                  </h2>
+
+                  {clientStats.audit_list?.length > 0 ? (
+                    <div className="space-y-3">
+                      {clientStats.audit_list.map((audit) => (
+                        <div
+                          key={audit.id}
+                          className="bg-slate-900 rounded-xl p-4 flex flex-wrap justify-between gap-3"
                         >
-                          <ChevronRight className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-                          <span>{rec}</span>
-                        </li>
+                          <div>
+                            <h3 className="text-sm font-semibold text-white">
+                              {audit.title}
+                            </h3>
+                            <p className="text-xs text-slate-400 mt-1">
+                              {audit.scope}
+                            </p>
+                            <p className="text-xs text-slate-400 mt-2">
+                              Controls: {audit.evaluated_controls ?? 0} /{" "}
+                              {audit.total_controls ?? 0} evaluated
+                            </p>
+                          </div>
+                          <span className="text-xs text-indigo-400 font-semibold">
+                            {audit.status?.replace("_", " ").toUpperCase()}
+                          </span>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-400">
+                      No audits have been assigned to your organisation yet.
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {activeTab === "dashboard" && role === "Auditor" && (
+          <div className="space-y-6">
+            {auditorLoading && (
+              <p className="text-sm text-indigo-400">
+                Loading assigned audit data...
+              </p>
+            )}
+
+            {auditorError && (
+              <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4 text-sm text-rose-400">
+                {auditorError}
+              </div>
+            )}
+
+            {auditorStats && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {[
+                    ["Assigned Audits", auditorStats.audits?.total],
+                    ["In Progress", auditorStats.audits?.in_progress],
+                    ["Completed", auditorStats.audits?.completed],
+                    ["Closed", auditorStats.audits?.closed],
+                  ].map(([label, value]) => (
+                    <div
+                      key={label}
+                      className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-5"
+                    >
+                      <p className="text-xs text-slate-400">{label}</p>
+                      <p className="text-3xl font-bold text-indigo-400 mt-2">
+                        {value ?? 0}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-5">
+                  <h2 className="text-base font-bold text-white mb-4">
+                    Assigned Control Overview
+                  </h2>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                      [
+                        "Awaiting Review",
+                        auditorStats.controls?.awaiting_review,
+                      ],
+                      ["Evaluated", auditorStats.controls?.evaluated],
+                      ["Pending", auditorStats.controls?.pending],
+                      ["Remediation", auditorStats.controls?.remediation],
+                      ["Compliant", auditorStats.controls?.compliant],
+                      [
+                        "Partially Compliant",
+                        auditorStats.controls?.partially_compliant,
+                      ],
+                      ["Non-Compliant", auditorStats.controls?.non_compliant],
+                      ["Not Applicable", auditorStats.controls?.not_applicable],
+                    ].map(([label, value]) => (
+                      <div key={label} className="bg-slate-900 rounded-xl p-4">
+                        <p className="text-xs text-slate-400">{label}</p>
+                        <p className="text-2xl font-bold text-white mt-1">
+                          {value ?? 0}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ) : (
-                <div className="mt-8 text-center py-8">
-                  <Cpu className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-                  <p className="text-sm text-slate-400">
-                    Click "Run AI Analysis" to synthesize current findings and
-                    generate gap analysis.
-                  </p>
+
+                <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-5">
+                  <h2 className="text-base font-bold text-white mb-4">
+                    Findings Overview
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {[
+                      ["Open Findings", auditorStats.findings?.open],
+                      [
+                        "Awaiting Verification",
+                        auditorStats.findings?.awaiting_verification,
+                      ],
+                      ["Resolved Findings", auditorStats.findings?.resolved],
+                    ].map(([label, value]) => (
+                      <div key={label} className="bg-slate-900 rounded-xl p-4">
+                        <p className="text-xs text-slate-400">{label}</p>
+                        <p className="text-2xl font-bold text-white mt-1">
+                          {value ?? 0}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
         )}
 
@@ -757,6 +1241,121 @@ export default function AuditPlatform() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {evaluationModal && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-white">
+                    Evaluate Control: {evaluationModal.control.id}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {evaluationModal.control.title}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setEvaluationModal(null)}
+                  disabled={evaluationSaving}
+                  className="text-slate-400 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-slate-400 mb-2">
+                    Evaluation Result
+                  </label>
+
+                  <div className="bg-slate-800 border border-slate-700 rounded-xl p-3">
+                    <span className="text-white font-bold">
+                      {evaluationModal.result === "NA"
+                        ? "Not Applicable (N/A)"
+                        : evaluationModal.result === "C"
+                          ? "Compliant (C)"
+                          : evaluationModal.result === "PC"
+                            ? "Partially Compliant (PC)"
+                            : "Non-Compliant (NC)"}
+                    </span>
+                  </div>
+                </div>
+
+                {(evaluationModal.result === "PC" ||
+                  evaluationModal.result === "NC") && (
+                  <>
+                    <div>
+                      <label className="block text-slate-400 mb-1">
+                        Finding Description
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={findingDescription}
+                        onChange={(e) => setFindingDescription(e.target.value)}
+                        placeholder="Describe the identified control gap..."
+                        className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 mb-1">
+                        Severity
+                      </label>
+                      <select
+                        value={findingSeverity}
+                        onChange={(e) => setFindingSeverity(e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 mb-1">
+                        Remediation Due Date
+                      </label>
+                      <input
+                        type="date"
+                        value={findingDueDate}
+                        onChange={(e) => setFindingDueDate(e.target.value)}
+                        min={new Date().toISOString().split("T")[0]}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {evaluationMessage && (
+                  <p className="text-rose-400">{evaluationMessage}</p>
+                )}
+
+                <div className="flex justify-end space-x-2 pt-2">
+                  <button
+                    type="button"
+                    disabled={evaluationSaving}
+                    onClick={() => setEvaluationModal(null)}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={evaluationSaving}
+                    onClick={submitEvaluation}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-indigo-600/30 disabled:opacity-50"
+                  >
+                    {evaluationSaving ? "Saving..." : "Confirm Evaluation"}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
