@@ -84,9 +84,12 @@ router.get(
             ac.workflow_status,
             ac.result,
             ac.client_explanation,
-            ac.auditor_comment,
-            ac.submitted_at,
-            ac.evaluated_at
+ac.auditor_comment,
+ac.evidence_file_name,
+ac.evidence_file_path,
+ac.evidence_uploaded_at,
+ac.submitted_at,
+ac.evaluated_at
          FROM audit_controls ac
          JOIN controls c ON c.id = ac.control_id
          WHERE ac.audit_id = $1

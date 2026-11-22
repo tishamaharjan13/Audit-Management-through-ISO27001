@@ -2,6 +2,7 @@ const express = require("express");
 const db = require("../db");
 const { authenticate, requireRole } = require("../middleware/auth");
 const asyncHandler = require("../utils/asyncHandler");
+const upload = require("../middleware/upload");
 
 const router = express.Router();
 
@@ -93,8 +94,11 @@ router.get(
             c.title,
             ac.workflow_status,
             ac.result,
-            ac.client_explanation,
-            ac.auditor_comment
+           ac.client_explanation,
+ac.auditor_comment,
+ac.evidence_file_name,
+ac.evidence_file_path,
+ac.evidence_uploaded_at
          FROM audit_controls ac
          JOIN controls c ON c.id = ac.control_id
          WHERE ac.audit_id = $1
@@ -110,8 +114,11 @@ router.get(
 );
 
 // CLIENT SUBMITS A SELF-ASSESSMENT FOR ONE CONTROL
+
+// CLIENT SUBMITS A SELF-ASSESSMENT WITH EVIDENCE
 router.post(
   "/:auditId/controls/:auditControlId/submit",
+  upload.single("evidence"),
   asyncHandler(async (req, res) => {
     const auditId = Number(req.params.auditId);
     const auditControlId = Number(req.params.auditControlId);
@@ -134,7 +141,6 @@ router.post(
       });
     }
 
-    // Verify that the audit belongs to this client's organization
     const auditResult = await db.query(
       `SELECT id, status
        FROM audits
@@ -157,17 +163,31 @@ router.post(
       });
     }
 
+    const fileName = req.file ? req.file.originalname : null;
+    const filePath = req.file ? `/uploads/${req.file.filename}` : null;
+
     const result = await db.query(
       `UPDATE audit_controls
        SET client_explanation = $1,
+           evidence_file_name = $2,
+           evidence_file_path = $3,
+           evidence_uploaded_at = CASE
+             WHEN $3::text IS NOT NULL THEN NOW()
+             ELSE NULL
+           END,
            workflow_status = 'submitted',
            submitted_at = NOW()
-       WHERE id = $2
-         AND audit_id = $3
+       WHERE id = $4
+         AND audit_id = $5
          AND workflow_status IN ('pending', 'more_evidence')
        RETURNING id, audit_id, control_id,
-                 client_explanation, workflow_status, submitted_at`,
-      [explanation, auditControlId, auditId],
+                 client_explanation,
+                 evidence_file_name,
+                 evidence_file_path,
+                 evidence_uploaded_at,
+                 workflow_status,
+                 submitted_at`,
+      [explanation, fileName, filePath, auditControlId, auditId],
     );
 
     if (result.rows.length === 0) {
@@ -178,7 +198,7 @@ router.post(
     }
 
     res.json({
-      message: "Self-assessment submitted successfully.",
+      message: "Self-assessment and evidence submitted successfully.",
       submission: result.rows[0],
     });
   }),

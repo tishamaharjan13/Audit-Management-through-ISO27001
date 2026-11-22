@@ -250,4 +250,134 @@ router.patch(
   }),
 );
 
+// Admin: Get controls not yet assigned to this audit
+router.get(
+  "/:id/controls",
+  asyncHandler(async (req, res) => {
+    const auditId = Number(req.params.id);
+
+    if (!Number.isInteger(auditId) || auditId <= 0) {
+      return res.status(400).json({ message: "Invalid audit ID." });
+    }
+
+    const auditResult = await db.query("SELECT id FROM audits WHERE id = $1", [
+      auditId,
+    ]);
+
+    if (!auditResult.rows.length) {
+      return res.status(404).json({ message: "Audit not found." });
+    }
+
+    const { rows } = await db.query(
+      `SELECT c.id, c.control_id, c.theme, c.title
+       FROM controls c
+       WHERE NOT EXISTS (
+         SELECT 1
+         FROM audit_controls ac
+         WHERE ac.audit_id = $1
+           AND ac.control_id = c.id
+       )
+       ORDER BY c.control_id`,
+      [auditId],
+    );
+
+    res.json(rows);
+  }),
+);
+
+// Admin: Add additional ISO controls to an existing audit
+router.post(
+  "/:id/controls",
+  asyncHandler(async (req, res) => {
+    const auditId = Number(req.params.id);
+    const controlIds = req.body.control_ids;
+
+    if (!Number.isInteger(auditId) || auditId <= 0) {
+      return res.status(400).json({ message: "Invalid audit ID." });
+    }
+
+    if (!Array.isArray(controlIds) || controlIds.length === 0) {
+      return res.status(400).json({
+        message: "Select at least one control.",
+      });
+    }
+
+    const uniqueControlIds = [...new Set(controlIds.map(Number))];
+
+    if (uniqueControlIds.some((id) => !Number.isInteger(id) || id <= 0)) {
+      return res.status(400).json({
+        message: "Invalid control IDs.",
+      });
+    }
+
+    const outcome = await db.transaction(async (client) => {
+      const auditResult = await client.query(
+        `SELECT id, status
+         FROM audits
+         WHERE id = $1
+         FOR UPDATE`,
+        [auditId],
+      );
+
+      if (!auditResult.rows.length) {
+        const error = new Error("Audit not found.");
+        error.status = 404;
+        throw error;
+      }
+
+      const controlsResult = await client.query(
+        `SELECT id, control_id, theme, title
+         FROM controls
+         WHERE id = ANY($1::int[])`,
+        [uniqueControlIds],
+      );
+
+      if (controlsResult.rows.length !== uniqueControlIds.length) {
+        const error = new Error("One or more controls do not exist.");
+        error.status = 400;
+        throw error;
+      }
+
+      const addedControls = [];
+
+      for (const controlId of uniqueControlIds) {
+        const result = await client.query(
+          `INSERT INTO audit_controls
+            (audit_id, control_id, workflow_status)
+           VALUES ($1, $2, 'pending')
+           ON CONFLICT (audit_id, control_id) DO NOTHING
+           RETURNING id, audit_id, control_id, workflow_status`,
+          [auditId, controlId],
+        );
+
+        if (result.rows.length) {
+          addedControls.push(result.rows[0]);
+        }
+      }
+
+      return {
+        audit: auditResult.rows[0],
+        addedControls,
+        requestedControls: controlsResult.rows,
+      };
+    });
+
+    await logAction({
+      userId: req.user.id,
+      auditId,
+      action: "controls_added_to_audit",
+      entity: "audit",
+      entityId: auditId,
+      details: {
+        added_control_count: outcome.addedControls.length,
+      },
+    });
+
+    res.json({
+      message: `${outcome.addedControls.length} control(s) added successfully.`,
+      added_controls: outcome.addedControls,
+    });
+  }),
+);
+
 module.exports = router;

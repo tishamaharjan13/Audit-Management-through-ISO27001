@@ -117,21 +117,39 @@ export const getToken = () => {
 
 // ---------- real backend helper ----------
 // Use this in every future API call: it adds the token and signs the user out on 401.
+
 export async function request(
   path,
   { method = "GET", body, auth = true } = {},
 ) {
-  const headers = { "Content-Type": "application/json" };
-  if (auth && getToken()) headers.Authorization = `Bearer ${getToken()}`;
+  const headers = {};
+
+  if (auth && getToken()) {
+    headers.Authorization = `Bearer ${getToken()}`;
+  }
+
+  const isFormData = body instanceof FormData;
+
+  if (body && !isFormData) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
   });
+
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401 && auth)
+
+  if (res.status === 401 && auth) {
     window.dispatchEvent(new Event("auth:expired"));
-  if (!res.ok) throw new Error(data.message || "Request failed.");
+  }
+
+  if (!res.ok) {
+    throw new Error(data.message || "Request failed.");
+  }
+
   return data;
 }
 

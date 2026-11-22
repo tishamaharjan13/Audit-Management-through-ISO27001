@@ -20,3 +20,7 @@ Thumbs.db
 
 # IDE
 .vscode/
+
+# Uploaded evidence files
+backend/uploads/*
+!backend/uploads/.gitkeep

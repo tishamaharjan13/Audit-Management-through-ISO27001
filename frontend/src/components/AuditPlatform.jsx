@@ -126,7 +126,7 @@ const INITIAL_CONTROLS = [
   },
 ];
 const ROLE_TABS = {
-  admin: ["dashboard", "notifications", "report", "users"],
+  admin: ["dashboard", "audits", "notifications", "report", "users"],
   auditor: ["dashboard", "controls", "remediation", "notifications", "report"],
   client: ["dashboard", "controls", "remediation", "notifications"],
 };
@@ -151,6 +151,56 @@ export default function AuditPlatform() {
   const [auditorAudit, setAuditorAudit] = useState(null);
   const [auditorAuditLoading, setAuditorAuditLoading] = useState(false);
   const [auditorAuditError, setAuditorAuditError] = useState("");
+
+  const [adminAudits, setAdminAudits] = useState([]);
+  const [adminAuditsLoading, setAdminAuditsLoading] = useState(false);
+  const [adminAuditsError, setAdminAuditsError] = useState("");
+
+  const [selectedAdminAudit, setSelectedAdminAudit] = useState(null);
+  const [availableControls, setAvailableControls] = useState([]);
+  const [selectedControlIds, setSelectedControlIds] = useState([]);
+  const [addingControls, setAddingControls] = useState(false);
+  const [controlsMessage, setControlsMessage] = useState("");
+
+  const handleAddControls = async () => {
+    if (!selectedAdminAudit || selectedControlIds.length === 0) {
+      setControlsMessage("Please select at least one control.");
+      return;
+    }
+
+    setAddingControls(true);
+    setControlsMessage("");
+
+    try {
+      const result = await request(
+        `/audits/${selectedAdminAudit.id}/controls`,
+        {
+          method: "POST",
+          body: {
+            control_ids: selectedControlIds,
+          },
+        },
+      );
+
+      setControlsMessage(result.message);
+
+      // Refresh available controls after saving
+      const updatedControls = await request(
+        `/audits/${selectedAdminAudit.id}/controls`,
+      );
+
+      setAvailableControls(updatedControls);
+      setSelectedControlIds([]);
+
+      // Refresh audit list to update control counts
+      const updatedAudits = await request("/audits");
+      setAdminAudits(updatedAudits);
+    } catch (error) {
+      setControlsMessage(error.message);
+    } finally {
+      setAddingControls(false);
+    }
+  };
 
   const [evaluationModal, setEvaluationModal] = useState(null);
   const [findingDescription, setFindingDescription] = useState("");
@@ -187,6 +237,66 @@ export default function AuditPlatform() {
       cancelled = true;
     };
   }, [user?.role]);
+
+  useEffect(() => {
+    if (user?.role !== "admin") return;
+
+    let cancelled = false;
+
+    setAdminAuditsLoading(true);
+    setAdminAuditsError("");
+
+    request("/audits")
+      .then((data) => {
+        if (!cancelled) {
+          setAdminAudits(data);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setAdminAuditsError(error.message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAdminAuditsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.role]);
+
+  useEffect(() => {
+    if (!selectedAdminAudit) {
+      setAvailableControls([]);
+      setSelectedControlIds([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    setAvailableControls([]);
+    setSelectedControlIds([]);
+    setControlsMessage("");
+
+    request(`/audits/${selectedAdminAudit.id}/controls`)
+      .then((data) => {
+        if (!cancelled) {
+          setAvailableControls(data);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setControlsMessage(error.message);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAdminAudit]);
 
   useEffect(() => {
     if (user?.role !== "client") return;
@@ -279,6 +389,8 @@ export default function AuditPlatform() {
             status:
               control.result === "NA" ? "N/A" : control.result || "Pending",
             evidence: control.client_explanation || "",
+            evidenceFileName: control.evidence_file_name || "",
+            evidenceFilePath: control.evidence_file_path || "",
             remarks: control.auditor_comment || "",
             remediation: null,
             workflowStatus: control.workflow_status,
@@ -330,6 +442,8 @@ export default function AuditPlatform() {
           title: control.title,
           status: control.result === "NA" ? "N/A" : control.result || "Pending",
           evidence: control.client_explanation || "",
+          evidenceFileName: control.evidence_file_name || "",
+          evidenceFilePath: control.evidence_file_path || "",
           remarks: control.client_explanation || "",
           remediation: null,
           workflowStatus: control.workflow_status,
@@ -364,6 +478,7 @@ export default function AuditPlatform() {
   const [selectedControl, setSelectedControl] = useState(null);
   const [evidenceInput, setEvidenceInput] = useState("");
   const [remarksInput, setRemarksInput] = useState("");
+  const [selectedEvidenceFile, setSelectedEvidenceFile] = useState(null);
   const [aiReport, setAiReport] = useState(null);
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [notifications, setNotifications] = useState([
@@ -507,14 +622,21 @@ export default function AuditPlatform() {
       return;
     }
 
+    if (!selectedEvidenceFile) {
+      alert("Please select an evidence file.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("client_explanation", explanation);
+    formData.append("evidence", selectedEvidenceFile);
+
     try {
       await request(
         `/client/audits/${clientAudit.audit.id}/controls/${selectedControl.auditControlId}/submit`,
         {
           method: "POST",
-          body: {
-            client_explanation: explanation,
-          },
+          body: formData,
         },
       );
 
@@ -530,6 +652,8 @@ export default function AuditPlatform() {
           title: control.title,
           status: control.result === "NA" ? "N/A" : control.result || "Pending",
           evidence: control.client_explanation || "",
+          evidenceFileName: control.evidence_file_name || "",
+          evidenceFilePath: control.evidence_file_path || "",
           remarks: control.client_explanation || "",
           remediation: null,
           workflowStatus: control.workflow_status,
@@ -537,10 +661,11 @@ export default function AuditPlatform() {
       );
 
       setSelectedControl(null);
+      setSelectedEvidenceFile(null);
       setEvidenceInput("");
       setRemarksInput("");
 
-      alert("Assessment submitted successfully!");
+      alert("Assessment and evidence submitted successfully!");
     } catch (error) {
       alert(error.message || "Could not submit assessment.");
     }
@@ -633,6 +758,7 @@ export default function AuditPlatform() {
             icon: CalendarIcon,
           },
           { id: "notifications", label: "Email & Event Logs", icon: Mail },
+          { id: "audits", label: "Audit Management", icon: FileText },
           { id: "users", label: "User Management", icon: UserCheck },
           { id: "report", label: "Final Certification Report", icon: FileText },
         ]
@@ -660,6 +786,112 @@ export default function AuditPlatform() {
       <main className="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
         {/* DASHBOARD & AI ANALYSIS TAB */}
         {activeTab === "users" && role === "Admin" && <UsersPage />}
+
+        {activeTab === "audits" && role === "Admin" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold text-white">
+                Audit Management
+              </h2>
+              <p className="text-sm text-slate-400 mt-1">
+                Manage existing audits and add additional Annex A controls.
+              </p>
+            </div>
+
+            {adminAuditsLoading && (
+              <p className="text-sm text-indigo-400">Loading audits...</p>
+            )}
+
+            {adminAuditsError && (
+              <p className="text-sm text-rose-400">{adminAuditsError}</p>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {adminAudits.map((audit) => (
+                <button
+                  key={audit.id}
+                  onClick={() => setSelectedAdminAudit(audit)}
+                  className={`text-left rounded-xl border p-5 transition ${
+                    selectedAdminAudit?.id === audit.id
+                      ? "border-indigo-500 bg-indigo-500/10"
+                      : "border-slate-700 bg-slate-800/60 hover:border-indigo-400"
+                  }`}
+                >
+                  <h3 className="font-bold text-white">{audit.title}</h3>
+                  <p className="text-sm text-slate-400 mt-2">
+                    {audit.client_organization}
+                  </p>
+                  <div className="flex justify-between mt-4 text-xs text-slate-400">
+                    <span>Status: {audit.status}</span>
+                    <span>Controls: {audit.total_controls}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {selectedAdminAudit && (
+              <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-5 space-y-4">
+                <div>
+                  <h3 className="text-lg font-bold text-white">Add Controls</h3>
+                  <p className="text-sm text-slate-400">
+                    Selected audit: {selectedAdminAudit.title}
+                  </p>
+                </div>
+
+                {controlsMessage && (
+                  <p className="text-sm text-indigo-300">{controlsMessage}</p>
+                )}
+
+                {availableControls.length === 0 ? (
+                  <p className="text-sm text-slate-400">
+                    No additional controls available for this audit.
+                  </p>
+                ) : (
+                  <div className="max-h-96 overflow-y-auto space-y-2">
+                    {availableControls.map((control) => (
+                      <label
+                        key={control.id}
+                        className="flex items-start gap-3 rounded-lg bg-slate-900 p-3 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedControlIds.includes(control.id)}
+                          onChange={(e) => {
+                            setSelectedControlIds((previous) =>
+                              e.target.checked
+                                ? [...previous, control.id]
+                                : previous.filter((id) => id !== control.id),
+                            );
+                          }}
+                          className="mt-1 accent-indigo-500"
+                        />
+                        <span>
+                          <span className="block text-sm font-semibold text-white">
+                            {control.control_id} — {control.title}
+                          </span>
+                          <span className="text-xs text-slate-400">
+                            {control.theme}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  onClick={handleAddControls}
+                  disabled={addingControls || selectedControlIds.length === 0}
+                  className="rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 px-5 py-2.5 text-sm font-semibold text-white"
+                >
+                  {addingControls
+                    ? "Adding..."
+                    : `Add Selected Controls (${selectedControlIds.length})`}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {showChangePw && (
           <ChangePasswordModal onClose={() => setShowChangePw(false)} />
         )}
@@ -1089,20 +1321,35 @@ export default function AuditPlatform() {
                             {c.remarks || "No notes attached."}
                           </div>
                         </td>
+
                         <td className="p-4 whitespace-nowrap">
-                          {c.evidence ? (
-                            <span className="inline-flex items-center space-x-1 text-xs text-indigo-400 bg-indigo-950/60 border border-indigo-800/40 px-2.5 py-1 rounded-md">
-                              <FileText className="w-3.5 h-3.5" />
-                              <span className="max-w-[100px] truncate">
-                                {c.evidence}
+                          {c.evidenceFileName ? (
+                            <div className="flex flex-col gap-2">
+                              <span className="inline-flex items-center space-x-1 text-xs text-indigo-400 bg-indigo-950/60 border border-indigo-800/40 px-2.5 py-1 rounded-md">
+                                <FileText className="w-3.5 h-3.5" />
+                                <span className="max-w-[150px] truncate">
+                                  {c.evidenceFileName}
+                                </span>
                               </span>
-                            </span>
+
+                              {c.evidenceFilePath && (
+                                <a
+                                  href={`http://localhost:5000${c.evidenceFilePath}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-sky-400 hover:text-sky-300 underline"
+                                >
+                                  Open Evidence
+                                </a>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-slate-500 italic">
                               No evidence uploaded
                             </span>
                           )}
                         </td>
+
                         <td className="p-4 whitespace-nowrap">
                           <span
                             className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-md font-bold text-[11px] ${
@@ -1200,16 +1447,65 @@ export default function AuditPlatform() {
 
                 <div>
                   <label className="block text-slate-400 mb-1">
-                    Evidence File Name / Artifact Link
+                    Upload Evidence File
                   </label>
+
                   <input
-                    type="text"
+                    type="file"
                     required
-                    placeholder="e.g., SOC2_Type2_Report.pdf or AWS_Config.json"
-                    value={evidenceInput}
-                    onChange={(e) => setEvidenceInput(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-indigo-500"
+                    accept=".pdf,.png,.jpg,.jpeg,.docx"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+
+                      if (!file) {
+                        setSelectedEvidenceFile(null);
+                        return;
+                      }
+
+                      const allowedExtensions = [
+                        "pdf",
+                        "png",
+                        "jpg",
+                        "jpeg",
+                        "docx",
+                      ];
+
+                      const extension = file.name
+                        .split(".")
+                        .pop()
+                        .toLowerCase();
+
+                      if (!allowedExtensions.includes(extension)) {
+                        alert(
+                          "Only PDF, PNG, JPG, JPEG, and DOCX files are allowed.",
+                        );
+                        e.target.value = "";
+                        setSelectedEvidenceFile(null);
+                        return;
+                      }
+
+                      if (file.size > 10 * 1024 * 1024) {
+                        alert("File size must not exceed 10 MB.");
+                        e.target.value = "";
+                        setSelectedEvidenceFile(null);
+                        return;
+                      }
+
+                      setSelectedEvidenceFile(file);
+                    }}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 file:mr-3 file:px-3 file:py-1 file:rounded-lg file:border-0 file:bg-indigo-600 file:text-white file:cursor-pointer"
                   />
+
+                  <p className="text-[10px] text-slate-500 mt-2">
+                    Accepted formats: PDF, PNG, JPG, JPEG, DOCX. Maximum size:
+                    10 MB.
+                  </p>
+
+                  {selectedEvidenceFile && (
+                    <p className="text-emerald-400 mt-2">
+                      Selected: {selectedEvidenceFile.name}
+                    </p>
+                  )}
                 </div>
 
                 <div>
