@@ -175,4 +175,132 @@ router.get(
   }),
 );
 
+// CLIENT DASHBOARD
+router.get(
+  "/client",
+  authenticate,
+  requireRole("client"),
+  asyncHandler(async (req, res) => {
+    const clientId = req.user.id;
+
+    const [audits, controls, findings, auditList] = await Promise.all([
+      // Audit statistics
+      db.query(
+        `SELECT
+           COUNT(*)::int AS total,
+           COUNT(*) FILTER (
+             WHERE status = 'in_progress'
+           )::int AS in_progress,
+           COUNT(*) FILTER (
+             WHERE status = 'completed'
+           )::int AS completed,
+           COUNT(*) FILTER (
+             WHERE status = 'closed'
+           )::int AS closed
+         FROM audits
+         WHERE client_org_id = (
+           SELECT organisation_id
+           FROM users
+           WHERE id = $1
+         )`,
+        [clientId],
+      ),
+
+      // Control statistics
+      db.query(
+        `SELECT
+           COUNT(ac.id)::int AS total,
+           COUNT(ac.id) FILTER (
+             WHERE ac.workflow_status = 'pending'
+           )::int AS pending,
+           COUNT(ac.id) FILTER (
+             WHERE ac.workflow_status = 'submitted'
+           )::int AS awaiting_review,
+           COUNT(ac.id) FILTER (
+             WHERE ac.workflow_status = 'evaluated'
+           )::int AS evaluated,
+           COUNT(ac.id) FILTER (
+             WHERE ac.workflow_status = 'remediation'
+           )::int AS remediation,
+           COUNT(ac.id) FILTER (
+             WHERE ac.result = 'C'
+           )::int AS compliant,
+           COUNT(ac.id) FILTER (
+             WHERE ac.result = 'NA'
+           )::int AS not_applicable,
+           COUNT(ac.id) FILTER (
+             WHERE ac.result = 'PC'
+           )::int AS partially_compliant,
+           COUNT(ac.id) FILTER (
+             WHERE ac.result = 'NC'
+           )::int AS non_compliant
+         FROM audits a
+         JOIN audit_controls ac ON ac.audit_id = a.id
+         WHERE a.client_org_id = (
+           SELECT organisation_id
+           FROM users
+           WHERE id = $1
+         )`,
+        [clientId],
+      ),
+
+      // Finding statistics
+      db.query(
+        `SELECT
+           COUNT(f.id)::int AS total,
+           COUNT(f.id) FILTER (
+             WHERE f.status = 'open'
+           )::int AS open,
+           COUNT(f.id) FILTER (
+             WHERE f.status = 'remediation_submitted'
+           )::int AS awaiting_verification,
+           COUNT(f.id) FILTER (
+             WHERE f.status = 'resolved'
+           )::int AS resolved
+         FROM findings f
+         JOIN audit_controls ac ON ac.id = f.audit_control_id
+         JOIN audits a ON a.id = ac.audit_id
+         WHERE a.client_org_id = (
+           SELECT organisation_id
+           FROM users
+           WHERE id = $1
+         )`,
+        [clientId],
+      ),
+
+      // Recent audits list
+      db.query(
+        `SELECT
+           a.id,
+           a.title,
+           a.scope,
+           a.status,
+           a.start_date,
+           a.end_date,
+           COUNT(ac.id)::int AS total_controls,
+           COUNT(ac.id) FILTER (
+             WHERE ac.workflow_status = 'evaluated'
+           )::int AS evaluated_controls
+         FROM audits a
+         LEFT JOIN audit_controls ac ON ac.audit_id = a.id
+         WHERE a.client_org_id = (
+           SELECT organisation_id
+           FROM users
+           WHERE id = $1
+         )
+         GROUP BY a.id
+         ORDER BY a.created_at DESC`,
+        [clientId],
+      ),
+    ]);
+
+    res.json({
+      audits: audits.rows[0],
+      controls: controls.rows[0],
+      findings: findings.rows[0],
+      audit_list: auditList.rows,
+    });
+  }),
+);
+
 module.exports = router;
