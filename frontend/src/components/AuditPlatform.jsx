@@ -152,6 +152,15 @@ export default function AuditPlatform() {
   const [auditorAuditLoading, setAuditorAuditLoading] = useState(false);
   const [auditorAuditError, setAuditorAuditError] = useState("");
 
+  const [remediationFindings, setRemediationFindings] = useState([]);
+  const [remediationLoading, setRemediationLoading] = useState(false);
+  const [remediationError, setRemediationError] = useState("");
+  const [remediationMessage, setRemediationMessage] = useState("");
+  const [remediationResponses, setRemediationResponses] = useState({});
+  const [remediationFiles, setRemediationFiles] = useState({});
+  const [remediationFeedback, setRemediationFeedback] = useState({});
+  const [remediationSavingId, setRemediationSavingId] = useState(null);
+
   const [adminAudits, setAdminAudits] = useState([]);
   const [adminAuditsLoading, setAdminAuditsLoading] = useState(false);
   const [adminAuditsError, setAdminAuditsError] = useState("");
@@ -468,6 +477,72 @@ export default function AuditPlatform() {
     };
   }, [user?.role, clientStats?.audit_list?.[0]?.id]);
 
+  useEffect(() => {
+    if (user?.role !== "client") return;
+
+    let cancelled = false;
+
+    const loadRemediationFindings = async () => {
+      setRemediationLoading(true);
+      setRemediationError("");
+
+      try {
+        const data = await request("/client/audits/remediation/findings");
+
+        if (!cancelled) {
+          setRemediationFindings(data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setRemediationError(error.message);
+        }
+      } finally {
+        if (!cancelled) {
+          setRemediationLoading(false);
+        }
+      }
+    };
+
+    loadRemediationFindings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.role]);
+
+  useEffect(() => {
+    if (user?.role !== "auditor") return;
+
+    let cancelled = false;
+
+    const loadAuditorRemediation = async () => {
+      setRemediationLoading(true);
+      setRemediationError("");
+
+      try {
+        const data = await request("/auditor/audits/remediation/findings");
+
+        if (!cancelled) {
+          setRemediationFindings(data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setRemediationError(error.message);
+        }
+      } finally {
+        if (!cancelled) {
+          setRemediationLoading(false);
+        }
+      }
+    };
+
+    loadAuditorRemediation();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.role]);
+
   // Keeps the rest of the code working: "Admin" | "Auditor" | "Client"
   const role = user.role.charAt(0).toUpperCase() + user.role.slice(1);
   const allowedTabs = ROLE_TABS[user.role] || ["dashboard"];
@@ -671,6 +746,96 @@ export default function AuditPlatform() {
     }
   };
 
+  // Submit corrective action for a finding
+  const handleRemediationSubmit = async (finding) => {
+    const response = (remediationResponses[finding.finding_id] || "").trim();
+    const evidenceFile = remediationFiles[finding.finding_id];
+
+    if (!evidenceFile) {
+      setRemediationMessage("Please attach additional evidence.");
+      return;
+    }
+
+    if (response.length < 10) {
+      setRemediationMessage("Please enter at least 10 characters.");
+      return;
+    }
+
+    setRemediationSavingId(finding.finding_id);
+    setRemediationMessage("");
+
+    try {
+      const formData = new FormData();
+
+      formData.append("client_response", response);
+      formData.append("evidence", evidenceFile);
+
+      const result = await request(
+        `/client/audits/${finding.audit_id}/findings/${finding.finding_id}/remediation`,
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
+
+      setRemediationMessage(result.message);
+
+      setRemediationResponses((previous) => ({
+        ...previous,
+        [finding.finding_id]: "",
+      }));
+      setRemediationFiles((previous) => ({
+        ...previous,
+        [finding.finding_id]: null,
+      }));
+      const updatedFindings = await request(
+        "/client/audits/remediation/findings",
+      );
+
+      setRemediationFindings(updatedFindings);
+    } catch (error) {
+      setRemediationMessage(error.message);
+    } finally {
+      setRemediationSavingId(null);
+    }
+  };
+
+  const handleVerifyRemediation = async (finding, verified) => {
+    const feedback = (remediationFeedback[finding.finding_id] || "").trim();
+
+    if (!feedback) {
+      setRemediationMessage("Please enter auditor feedback.");
+      return;
+    }
+
+    setRemediationSavingId(finding.finding_id);
+    setRemediationMessage("");
+
+    try {
+      const result = await request(
+        `/auditor/audits/${finding.audit_id}/findings/${finding.finding_id}/verify`,
+        {
+          method: "PATCH",
+          body: {
+            verified,
+            auditor_feedback: feedback,
+          },
+        },
+      );
+
+      setRemediationMessage(result.message);
+
+      const updatedFindings = await request(
+        "/auditor/audits/remediation/findings",
+      );
+
+      setRemediationFindings(updatedFindings);
+    } catch (error) {
+      setRemediationMessage(error.message);
+    } finally {
+      setRemediationSavingId(null);
+    }
+  };
   // Run AI Readiness Analysis
   const runAiAnalysis = () => {
     setIsGeneratingAi(true);
@@ -1666,57 +1831,212 @@ export default function AuditPlatform() {
               </h2>
 
               <div className="space-y-3">
-                {controls.filter((c) => c.remediation).length === 0 ? (
-                  <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-8 text-center text-slate-400">
-                    No active remediation tasks. All applicable controls are
-                    compliant!
-                  </div>
-                ) : (
-                  controls
-                    .filter((c) => c.remediation)
-                    .map((c) => (
+                {role === "Client" ? (
+                  <>
+                    {remediationLoading && (
+                      <p className="text-sm text-slate-400">
+                        Loading findings...
+                      </p>
+                    )}
+
+                    {remediationError && (
+                      <p className="text-sm text-rose-400">
+                        {remediationError}
+                      </p>
+                    )}
+
+                    {remediationMessage && (
+                      <p className="text-sm text-emerald-400">
+                        {remediationMessage}
+                      </p>
+                    )}
+
+                    {!remediationLoading &&
+                      remediationFindings.length === 0 && (
+                        <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-8 text-center text-slate-400">
+                          No findings currently require corrective action.
+                        </div>
+                      )}
+
+                    {remediationFindings.map((finding) => (
                       <div
-                        key={c.id}
-                        className="bg-slate-800/40 border border-slate-800 p-4 rounded-xl flex flex-wrap justify-between items-center gap-4"
+                        key={finding.finding_id}
+                        className="bg-slate-800/40 border border-slate-800 p-4 rounded-xl space-y-3"
+                      >
+                        <div className="flex flex-wrap justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-mono text-indigo-400">
+                              {finding.control_id} · {finding.audit_title}
+                            </p>
+                            <h4 className="text-sm font-semibold text-white mt-1">
+                              {finding.control_title}
+                            </h4>
+                            <p className="text-xs text-slate-300 mt-2">
+                              {finding.description}
+                            </p>
+                            <p className="text-xs text-slate-400 mt-2">
+                              Due date:{" "}
+                              {finding.due_date
+                                ? new Date(
+                                    finding.due_date,
+                                  ).toLocaleDateString()
+                                : "Not specified"}
+                            </p>
+                          </div>
+
+                          <span className="text-xs text-amber-400">
+                            {finding.finding_status}
+                          </span>
+                        </div>
+
+                        {finding.finding_status === "open" && (
+                          <>
+                            <textarea
+                              value={
+                                remediationResponses[finding.finding_id] || ""
+                              }
+                              onChange={(e) =>
+                                setRemediationResponses((previous) => ({
+                                  ...previous,
+                                  [finding.finding_id]: e.target.value,
+                                }))
+                              }
+                              placeholder="Explain the corrective actions taken..."
+                              rows={3}
+                              className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-white"
+                            />
+                            <input
+                              type="file"
+                              accept=".pdf,.png,.jpg,.jpeg,.docx"
+                              onChange={(e) =>
+                                setRemediationFiles((previous) => ({
+                                  ...previous,
+                                  [finding.finding_id]:
+                                    e.target.files?.[0] || null,
+                                }))
+                              }
+                            />
+
+                            <button
+                              onClick={() => handleRemediationSubmit(finding)}
+                              disabled={
+                                remediationSavingId === finding.finding_id
+                              }
+                              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-4 py-2 rounded-lg disabled:opacity-50"
+                            >
+                              {remediationSavingId === finding.finding_id
+                                ? "Submitting..."
+                                : "Submit Corrective Action"}
+                            </button>
+                          </>
+                        )}
+
+                        {finding.finding_status === "remediation_submitted" && (
+                          <p className="text-xs text-indigo-300">
+                            Corrective action submitted. Waiting for auditor
+                            verification.
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    {remediationLoading && (
+                      <p className="text-sm text-slate-400">
+                        Loading findings...
+                      </p>
+                    )}
+
+                    {remediationError && (
+                      <p className="text-sm text-rose-400">
+                        {remediationError}
+                      </p>
+                    )}
+
+                    {remediationMessage && (
+                      <p className="text-sm text-emerald-400">
+                        {remediationMessage}
+                      </p>
+                    )}
+
+                    {!remediationLoading &&
+                      remediationFindings.length === 0 && (
+                        <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-8 text-center text-slate-400">
+                          No corrective actions are waiting for verification.
+                        </div>
+                      )}
+
+                    {remediationFindings.map((finding) => (
+                      <div
+                        key={finding.finding_id}
+                        className="bg-slate-800/40 border border-slate-800 p-4 rounded-xl space-y-3"
                       >
                         <div>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-mono text-xs font-bold text-indigo-400">
-                              {c.id}
-                            </span>
-                            <span
-                              className={`text-[10px] px-2 py-0.5 rounded font-bold ${
-                                c.status === "NC"
-                                  ? "bg-rose-500/20 text-rose-400"
-                                  : "bg-amber-500/20 text-amber-400"
-                              }`}
-                            >
-                              {c.status} Finding
-                            </span>
-                          </div>
-                          <h4 className="text-xs font-semibold text-white mt-1">
-                            {c.remediation.task}
+                          <p className="text-xs font-mono text-indigo-400">
+                            {finding.control_id} · {finding.audit_title}
+                          </p>
+                          <h4 className="text-sm font-semibold text-white mt-1">
+                            {finding.control_title}
                           </h4>
-                          <p className="text-[11px] text-slate-400 mt-1">
-                            Deadline: {c.remediation.deadline}
+                          <p className="text-xs text-slate-300 mt-2">
+                            Finding: {finding.description}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-2">
+                            Client submission (Round {finding.round_no}):
+                          </p>
+                          <p className="text-sm text-white bg-slate-900 p-3 rounded-lg mt-1">
+                            {finding.client_response}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-2">
+                            Due date:{" "}
+                            {finding.due_date
+                              ? new Date(finding.due_date).toLocaleDateString()
+                              : "Not specified"}
                           </p>
                         </div>
 
-                        <div className="flex items-center space-x-3">
-                          <span className="text-xs text-slate-400 bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-lg">
-                            {c.remediation.status}
-                          </span>
-                          {role === "Auditor" && (
-                            <button
-                              onClick={() => handleEvaluate(c.id, "C")}
-                              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition-all shadow-md shadow-emerald-600/30"
-                            >
-                              Mark Resolved
-                            </button>
-                          )}
+                        <textarea
+                          value={remediationFeedback[finding.finding_id] || ""}
+                          onChange={(e) =>
+                            setRemediationFeedback((previous) => ({
+                              ...previous,
+                              [finding.finding_id]: e.target.value,
+                            }))
+                          }
+                          placeholder="Enter your verification feedback..."
+                          rows={3}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-white"
+                        />
+
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() =>
+                              handleVerifyRemediation(finding, true)
+                            }
+                            disabled={
+                              remediationSavingId === finding.finding_id
+                            }
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-4 py-2 rounded-lg disabled:opacity-50"
+                          >
+                            Accept Corrective Action
+                          </button>
+
+                          <button
+                            onClick={() =>
+                              handleVerifyRemediation(finding, false)
+                            }
+                            disabled={
+                              remediationSavingId === finding.finding_id
+                            }
+                            className="bg-rose-600 hover:bg-rose-500 text-white text-xs px-4 py-2 rounded-lg disabled:opacity-50"
+                          >
+                            Reject & Request Resubmission
+                          </button>
                         </div>
                       </div>
-                    ))
+                    ))}
+                  </>
                 )}
               </div>
             </div>

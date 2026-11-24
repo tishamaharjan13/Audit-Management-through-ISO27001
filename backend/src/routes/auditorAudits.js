@@ -256,6 +256,50 @@ router.patch(
   }),
 );
 
+// AUDITOR: VIEW CORRECTIVE ACTIONS WAITING FOR VERIFICATION
+router.get(
+  "/remediation/findings",
+  asyncHandler(async (req, res) => {
+    const { rows } = await db.query(
+      `SELECT
+          f.id AS finding_id,
+          f.severity,
+          f.description,
+          f.due_date,
+          f.status AS finding_status,
+          c.control_id,
+          c.title AS control_title,
+          a.id AS audit_id,
+          a.title AS audit_title,
+          rs.id AS submission_id,
+          rs.round_no,
+          rs.client_response,
+rs.submitted_at,
+rs.evidence_file_name,
+rs.evidence_file_path
+       FROM findings f
+       JOIN audit_controls ac ON ac.id = f.audit_control_id
+       JOIN controls c ON c.id = ac.control_id
+       JOIN audits a ON a.id = ac.audit_id
+       JOIN LATERAL (
+         SELECT id, round_no, client_response, submitted_at,
+       evidence_file_name, evidence_file_path
+          FROM remediation_submissions
+          WHERE finding_id = f.id
+          ORDER BY round_no DESC
+          LIMIT 1
+       ) rs ON true
+       WHERE a.auditor_id = $1
+         AND a.status = 'in_progress'
+         AND f.status = 'remediation_submitted'
+       ORDER BY f.due_date ASC NULLS LAST`,
+      [req.user.id],
+    );
+
+    res.json(rows);
+  }),
+);
+
 // AUDITOR: VERIFY CLIENT CORRECTIVE ACTION
 router.patch(
   "/:auditId/findings/:findingId/verify",

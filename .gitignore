@@ -23,4 +23,4 @@ Thumbs.db
 
 # Uploaded evidence files
 backend/uploads/*
-!backend/uploads/.gitkeep
+!backend/uploads/.gitkeep  
